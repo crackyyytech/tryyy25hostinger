@@ -22,7 +22,7 @@ app.use(express.static(path.join(__dirname, 'dist')));
 // Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
+  process.env.SUPABASE_API_KEY
 );
 
 app.get('/api/test-db', async (req, res) => {
