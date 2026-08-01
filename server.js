@@ -1,9 +1,9 @@
 import express from 'express';
-import mysql from 'mysql2/promise';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createClient } from '@supabase/supabase-js';
 
 dotenv.config();
 
@@ -19,25 +19,16 @@ app.use(express.json());
 // Serve React build static files
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Create pool but don't connect eagerly — lazy connection on first query
-let pool;
-try {
-  pool = mysql.createPool({
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'myapp_db',
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
-  });
-} catch (err) {
-  console.error('Failed to create DB pool:', err.message);
-}
+// Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
 
 app.get('/api/test-db', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT 1');
+    const { data, error } = await supabase.from('entries').select('count');
+    if (error) throw error;
     res.json({ message: 'Database connected successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Database connection failed', error: error.message });
@@ -50,11 +41,13 @@ app.post('/api/entries', async (req, res) => {
     return res.status(400).json({ message: 'All fields are required' });
   }
   try {
-    const [result] = await pool.query(
-      'INSERT INTO entries (name, email, message) VALUES (?, ?, ?)',
-      [name, email, message]
-    );
-    res.status(201).json({ id: result.insertId, name, email, message });
+    const { data, error } = await supabase
+      .from('entries')
+      .insert([{ name, email, message }])
+      .select()
+      .single();
+    if (error) throw error;
+    res.status(201).json(data);
   } catch (error) {
     res.status(500).json({ message: 'Error creating entry', error: error.message });
   }
@@ -62,8 +55,12 @@ app.post('/api/entries', async (req, res) => {
 
 app.get('/api/entries', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM entries ORDER BY created_at DESC');
-    res.json(rows);
+    const { data, error } = await supabase
+      .from('entries')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json(data);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching entries', error: error.message });
   }
