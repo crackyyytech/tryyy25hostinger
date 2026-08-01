@@ -19,20 +19,26 @@ app.use(express.json());
 // Serve React build static files
 app.use(express.static(path.join(__dirname, 'dist')));
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'myapp_db',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
+// Create pool but don't connect eagerly — lazy connection on first query
+let pool;
+try {
+  pool = mysql.createPool({
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'myapp_db',
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
+  });
+} catch (err) {
+  console.error('Failed to create DB pool:', err.message);
+}
 
 app.get('/api/test-db', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT 1');
-    res.json({ message: 'Database connected successfully', rows });
+    res.json({ message: 'Database connected successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Database connection failed', error: error.message });
   }
@@ -40,7 +46,9 @@ app.get('/api/test-db', async (req, res) => {
 
 app.post('/api/entries', async (req, res) => {
   const { name, email, message } = req.body;
-  
+  if (!name || !email || !message) {
+    return res.status(400).json({ message: 'All fields are required' });
+  }
   try {
     const [result] = await pool.query(
       'INSERT INTO entries (name, email, message) VALUES (?, ?, ?)',
