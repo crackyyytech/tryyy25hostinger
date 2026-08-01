@@ -2,14 +2,22 @@ import express from 'express';
 import mysql from 'mysql2/promise';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+
+// Serve React build static files
+app.use(express.static(path.join(__dirname, 'dist')));
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
@@ -51,6 +59,11 @@ app.get('/api/entries', async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: 'Error fetching entries', error: error.message });
   }
+});
+
+// All other routes serve the React app
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 app.listen(PORT, () => {
